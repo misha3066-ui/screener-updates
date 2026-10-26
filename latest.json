@@ -1,8 +1,8 @@
 {
- "версия": "2026.10.26.2",
- "файл": "https://raw.githubusercontent.com/misha3066-ui/screener-updates/main/app_2026.10.26.2.zip",
- "sha256": "eb719f491365975fd7d8ef2e49b047231a1c83999cc4a388c2e66627788d4920",
+ "версия": "2026.10.26.3",
+ "файл": "https://raw.githubusercontent.com/misha3066-ui/screener-updates/main/app_2026.10.26.3.zip",
+ "sha256": "f0dfc150ff3c6b39bf31f40a7881547c051cfbeb2fcdbbb2605b1a5c241585ef",
  "python": "3.14",
- "что_нового": "Условия использования (принять до активации); ключ на 30 дней, продление через Михаила; ⚙ окном поверх скринера; дневник как скринер; правки стакана и рисования",
- "подпись": "vsU9uAOMW0B3spo0TYxtQPey4Cjq4vLwcMmCel1wUBv3f2aiI1ttgHoJWS5pL13I3LIohTootyaeu2foymAlBg=="
+ "что_нового": "Новое название — TRAIL (ТРЕЙЛ)",
+ "подпись": "Itizur5z7umGHccUahz4dLYCm+5iI+WtTH9TpomLrm+5xKnsnx+ZIMTWEYue8GH28gEGSinTtlD2iMsIu6/CCQ=="
 }
