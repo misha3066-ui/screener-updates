@@ -1,8 +1,8 @@
 {
- "версия": "2026.10.26.1",
- "файл": "https://raw.githubusercontent.com/misha3066-ui/screener-updates/main/app_2026.10.26.1.zip",
- "sha256": "a2a7c33ac0b54e8741e443bcbd89630e582c6a023ec8bd6fca4ef72117d561f2",
+ "версия": "2026.10.26.2",
+ "файл": "https://raw.githubusercontent.com/misha3066-ui/screener-updates/main/app_2026.10.26.2.zip",
+ "sha256": "eb719f491365975fd7d8ef2e49b047231a1c83999cc4a388c2e66627788d4920",
  "python": "3.14",
- "что_нового": "первая версия",
- "подпись": "RF1aU9A/KzdHG8jw3Q49rnC8cdkq0QRF9jm6OvdYP1BOyk86yKOt6+cHNcQ9byQHdxhD8zK+kwaXMwkcyewVCA=="
+ "что_нового": "Условия использования (принять до активации); ключ на 30 дней, продление через Михаила; ⚙ окном поверх скринера; дневник как скринер; правки стакана и рисования",
+ "подпись": "vsU9uAOMW0B3spo0TYxtQPey4Cjq4vLwcMmCel1wUBv3f2aiI1ttgHoJWS5pL13I3LIohTootyaeu2foymAlBg=="
 }
