@@ -1,8 +1,8 @@
 {
- "версия": "2026.10.27.4",
- "файл": "https://raw.githubusercontent.com/misha3066-ui/screener-updates/main/app_2026.10.27.4.zip",
- "sha256": "33fe5c57660efcb32c53668129e704f12497bc0b2b55c557ca93dc1ca3ce55e3",
+ "версия": "2026.10.27.5",
+ "файл": "https://raw.githubusercontent.com/misha3066-ui/screener-updates/main/app_2026.10.27.5.zip",
+ "sha256": "201d28aa91266494959c47aff14b3bfba6660c409f766726a225e94bf88d796a",
  "python": "3.14",
- "что_нового": "Цена над лучами и уровнями (алерт — у оси); монеты подсвечены: алерт — жёлтым, заявки — синим, сделка — зелёным/красным (превью и список тикеров)",
- "подпись": "fWNM0P/tgJ1pMn37PjPTAgODEFSmmoOkQgZkPSpEnspX6WALFypwWxJEei/OdCGwlafHl998wEPAgN+uOud0DA=="
+ "что_нового": "Скринер — отдельным окном, с первого клика на весь экран (Esc — выйти); цена спота в стакане серой плашкой; 1–5 над стаканом — сумма; поиск тикера с USDT и вставка Ctrl+V; линейка: часы, дни, недели, месяцы, годы; отступ справа на графике",
+ "подпись": "rKM1RotMAFeXWl4VuZZ5JXl0DtNUEb953kpuHrnE8HH+mXoK/IyzUEzf9VoCDOLhBbJEAdvnMFDLDeXO/RuSDQ=="
 }
