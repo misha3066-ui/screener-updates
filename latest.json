@@ -1,8 +1,8 @@
 {
- "версия": "2026.10.27.3",
- "файл": "https://raw.githubusercontent.com/misha3066-ui/screener-updates/main/app_2026.10.27.3.zip",
- "sha256": "21f90dda57bb14d190439260020accfbe411a625d106ab76af5fb6a35614cb10",
+ "версия": "2026.10.27.4",
+ "файл": "https://raw.githubusercontent.com/misha3066-ui/screener-updates/main/app_2026.10.27.4.zip",
+ "sha256": "33fe5c57660efcb32c53668129e704f12497bc0b2b55c557ca93dc1ca3ce55e3",
  "python": "3.14",
- "что_нового": "Аналитика дневника: результат по дням — календарь (зелёные/красные дни, сумма, % от депозита, итог недели и месяца)",
- "подпись": "ZEPDtUKhyQalFRptF9zVGvsimoWnFEOt80DA/+pna+Dpm1/JpGUM4He4tbsGvV/4uSZVrZCkytQAauCSygXPAA=="
+ "что_нового": "Цена над лучами и уровнями (алерт — у оси); монеты подсвечены: алерт — жёлтым, заявки — синим, сделка — зелёным/красным (превью и список тикеров)",
+ "подпись": "fWNM0P/tgJ1pMn37PjPTAgODEFSmmoOkQgZkPSpEnspX6WALFypwWxJEei/OdCGwlafHl998wEPAgN+uOud0DA=="
 }
