@@ -1,8 +1,8 @@
 {
- "версия": "2026.10.26.3",
- "файл": "https://raw.githubusercontent.com/misha3066-ui/screener-updates/main/app_2026.10.26.3.zip",
- "sha256": "f0dfc150ff3c6b39bf31f40a7881547c051cfbeb2fcdbbb2605b1a5c241585ef",
+ "версия": "2026.10.27.1",
+ "файл": "https://raw.githubusercontent.com/misha3066-ui/screener-updates/main/app_2026.10.27.1.zip",
+ "sha256": "65f60daaafb7f4502788d40e688a829ba83beb67974c3b19cc1cc42f29bbb77d",
  "python": "3.14",
- "что_нового": "Новое название — TRAIL (ТРЕЙЛ)",
- "подпись": "Itizur5z7umGHccUahz4dLYCm+5iI+WtTH9TpomLrm+5xKnsnx+ZIMTWEYue8GH28gEGSinTtlD2iMsIu6/CCQ=="
+ "что_нового": "Рисование: панель слева, Фибоначчи, прямоугольник, кнопка алерта; секундники 1с/5с/15с (кнопка «с»); открытые сделки и заработок 💵 в шапке; след сработавшего алерта; звуки выставления заявок и закрытия; алерты в Telegram через свой бот (⚙ → 4); одинаковая шапка везде",
+ "подпись": "E7y0riKclQhr2SUY6NV2uq/1QlZv/rq81ZyhA01g/dgbyxC0iLwvOkOYIg9ZHh1D3Anmob4W4at1+RqR0P/mAg=="
 }
