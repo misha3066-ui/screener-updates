@@ -1,8 +1,8 @@
 {
- "версия": "2026.10.27.6",
- "файл": "https://raw.githubusercontent.com/misha3066-ui/screener-updates/main/app_2026.10.27.6.zip",
- "sha256": "0e5f9bccc6c9d6f7b49d39c263c6568a755e6d1b95cabbda543c0f3a71bb43ec",
+ "версия": "2026.10.27.7",
+ "файл": "https://raw.githubusercontent.com/misha3066-ui/screener-updates/main/app_2026.10.27.7.zip",
+ "sha256": "8407a10cf2115c475a71d3edf6c4895bb55cdcbe8927158a8e8967862cdbda28",
  "python": "3.14",
- "что_нового": "Топ: по сделкам, объёму, росту или падению + фильтр (порог сделок/объёма, исключённые тикеры); режим «только график» (кнопка в правом нижнем углу графика) в цветах дневника; ⛶ и фандинг справа вверху; Alt+Enter — весь экран; шапка открытой монеты — только кнопки, тикер и цифры на графике, если не влезают; без автоматического полного экрана",
- "подпись": "+2pF76JhRYhxWGnD6wWidBoIYZ8lD3sWacujR8g1wWcwnwh8IJ45Jri88SITOUsXlYmlLlnS37E/Pg/BPXcNBA=="
+ "что_нового": "Цены лучей и уровней — меткой на оси цен (подписи шкалы под ней скрываются); звуки громче; переход часа — тиканье часов и «бом» в :00; тикер и цифры в шапке на широком мониторе; Alt+Enter и с правым Alt",
+ "подпись": "2LzYJcbUxA653ffeocZjUnUiiiH3OlztuMcR/k26L1IljaTEWPhaMacx0HUGRYoxhU+PHbsB6hhxTms7cszJAA=="
 }
