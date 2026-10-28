@@ -1,8 +1,8 @@
 {
- "версия": "2026.10.28.1",
- "файл": "https://raw.githubusercontent.com/misha3066-ui/screener-updates/main/app_2026.10.28.1.zip",
- "sha256": "c03d21ebd5a5bfcd131918d7ac8963e267ad0c9c08e06ea44e9e68ecaf8a77a8",
+ "версия": "2026.10.28.2",
+ "файл": "https://raw.githubusercontent.com/misha3066-ui/screener-updates/main/app_2026.10.28.2.zip",
+ "sha256": "a2e0ba0141305e860c3951d20864a3642ad03ba712de6d6f5904551f27af3a8c",
  "python": "3.14",
- "что_нового": "Подсказка объёма: убран повтор «за 24 часа» в окне 24 часа",
- "подпись": "0stF0rJt3rfkvx3ceX7EDNA8NfAWYeZbW6lSmZl+JEKHAHuPOCKh2h19+VcpkeyoEeigfzXi/EsFVC0p5OV/BA=="
+ "что_нового": "Дневник: окно дня по клику в календаре, винрейт отдельной карточкой, сохранение без кнопки. Скринер и дневник: плашка позиции красная в минусе, финрез сразу после сделки, магнит к телам свечей, сброс в фильтре",
+ "подпись": "HQbm68kunGvYHtbX8fdLoHHULCGeel9LeGiCWo/FubgzegGncOWdZz7Y/Rb9jUmAa4jQ2co7xiMBMHVOoB8cCA=="
 }
