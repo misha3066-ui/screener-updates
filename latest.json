@@ -1,8 +1,8 @@
 {
- "версия": "2026.10.27.7",
- "файл": "https://raw.githubusercontent.com/misha3066-ui/screener-updates/main/app_2026.10.27.7.zip",
- "sha256": "8407a10cf2115c475a71d3edf6c4895bb55cdcbe8927158a8e8967862cdbda28",
+ "версия": "2026.10.28.1",
+ "файл": "https://raw.githubusercontent.com/misha3066-ui/screener-updates/main/app_2026.10.28.1.zip",
+ "sha256": "c03d21ebd5a5bfcd131918d7ac8963e267ad0c9c08e06ea44e9e68ecaf8a77a8",
  "python": "3.14",
- "что_нового": "Цены лучей и уровней — меткой на оси цен (подписи шкалы под ней скрываются); звуки громче; переход часа — тиканье часов и «бом» в :00; тикер и цифры в шапке на широком мониторе; Alt+Enter и с правым Alt",
- "подпись": "2LzYJcbUxA653ffeocZjUnUiiiH3OlztuMcR/k26L1IljaTEWPhaMacx0HUGRYoxhU+PHbsB6hhxTms7cszJAA=="
+ "что_нового": "Подсказка объёма: убран повтор «за 24 часа» в окне 24 часа",
+ "подпись": "0stF0rJt3rfkvx3ceX7EDNA8NfAWYeZbW6lSmZl+JEKHAHuPOCKh2h19+VcpkeyoEeigfzXi/EsFVC0p5OV/BA=="
 }
