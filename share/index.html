@@ -67,7 +67,7 @@ const LOCAL = /^(127\.0\.0\.1|localhost)$/.test(location.hostname);   // отк�
 // где лежит эта же страница для всех (GitHub Pages репозитория обновлений): ссылка, которую можно переслать дальше
 const SHARE_URL = 'https://misha3066-ui.github.io/screener-updates/share/';
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-let D = null, tf = '1m', candles = [], chart = null, series = null, plines = [], loadN = 0;
+let D = null, tf = '1m', candles = [], chart = null, series = null, plines = [], loadN = 0, mouse = null;
 
 async function unpack(s) {
   s = s.replace(/-/g, '+').replace(/_/g, '/');
@@ -93,13 +93,8 @@ let prec = 4;
 const fp = p => (+p).toFixed(prec);
 
 // ---------- свечи с биржи ----------
-async function klines(tf) {
-  const iv = IV[tf], e0 = D.e[0][0], x1 = D.x.length ? D.x[D.x.length - 1][0] : e0;
-  const now = Math.floor(Date.now() / 1000);
-  let start = e0 - 200 * iv, end = Math.min(now, x1 + 150 * iv);
-  if ((end - start) / iv > 1000) {                      // длинная сделка — меньше запаса по краям
-    start = e0 - 40 * iv; end = Math.min(now, start + 1000 * iv);
-  }
+async function fetchRange(tf, start, end) {
+  // свечи с start по end (UTC, с), не больше 1000 за запрос
   if (D.ex === 'bybit') {
     const r = await (await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${D.s}` +
       `&interval=${BYBIT_IV[tf]}&start=${start * 1000}&end=${end * 1000}&limit=1000`)).json();
@@ -110,6 +105,18 @@ async function klines(tf) {
     `&startTime=${start * 1000}&endTime=${end * 1000}&limit=1000`);
   if (!r.ok) throw new Error('биржа ответила ' + r.status);
   return (await r.json()).map(k => ({ time: k[0] / 1000 + TZ, open: +k[1], high: +k[2], low: +k[3], close: +k[4], q: +k[7] }));
+}
+async function klines(tf) {
+  const iv = IV[tf], e0 = D.e[0][0], x1 = D.x.length ? D.x[D.x.length - 1][0] : e0;
+  const now = Math.floor(Date.now() / 1000);
+  let start = e0 - 500 * iv, end = Math.min(now, x1 + 500 * iv), out = [];
+  if ((end - start) / iv > 4000) end = start + 4000 * iv;   // очень длинная сделка на мелком ТФ — не больше 4 запросов
+  for (let t = start; t <= end; t += 1000 * iv) {
+    const part = await fetchRange(tf, t, Math.min(end, t + 1000 * iv - 1));
+    const last = out.length ? out[out.length - 1].time : -Infinity;
+    out = out.concat(part.filter(b => b.time > last));
+  }
+  return out;
 }
 
 // логическая позиция момента t (UTC, с): номер свечи + доля внутри неё; за краями — шагом таймфрейма
@@ -122,7 +129,12 @@ function lpos(t) {
   while (hi - lo > 1) { const m = (lo + hi) >> 1; if (candles[m].time <= u) lo = m; else hi = m; }
   return lo + (u - candles[lo].time) / (candles[hi].time - candles[lo].time);
 }
-const xAt = l => l == null ? null : chart.timeScale().logicalToCoordinate(l);
+function xAt(l) {
+  // дробную позицию график не берёт — между центрами двух соседних свечей сами
+  if (l == null) return null;
+  const ts = chart.timeScale(), i = Math.floor(l), x0 = ts.logicalToCoordinate(i), x1 = ts.logicalToCoordinate(i + 1);
+  return x0 == null || x1 == null ? null : x0 + (x1 - x0) * (l - i);
+}
 const barMid = t => { const l = lpos(t); return l == null ? null : xAt(Math.floor(l + 1e-9)); };   // шеврон — по центру свечи
 const yAt = p => series.priceToCoordinate(p);
 
@@ -138,23 +150,71 @@ async function load(newTf) {
   if (id !== loadN) return;
   if (!cs.length) { el('msg').textContent = 'биржа не отдала свечи за это время'; return; }
   el('msg').style.display = 'none';
+  doneOld = doneNew = false;
+  setAll(cs);
+  center();
+}
+
+function setAll(cs) {
   candles = cs;
   series.setData(cs);
   vol.setData(cs.map(b => ({ time: b.time, value: b.q, color: b.close >= b.open ? '#26a69a66' : '#ef535066' })));
   const last = cs[cs.length - 1].time, fut = [];        // правее последней свечи — пустые метки: ось идёт дальше
   for (let i = 1; i <= 500; i++) fut.push({ time: last + i * IV[tf] });
   futS.setData(fut);
-  center();
+}
+
+// ---------- догрузка при прокрутке: влево — история, вправо — что было после сделки, до текущей минуты ----------
+let busyOld = false, busyNew = false, doneOld = false, doneNew = false;
+async function loadOlder() {
+  if (busyOld || doneOld || !candles.length) return;
+  busyOld = true;
+  const id = loadN, iv = IV[tf], end = candles[0].time - TZ - 1;
+  let ok = false;
+  try {
+    const got = (await fetchRange(tf, end - 1000 * iv, end)).filter(b => b.time < candles[0].time);
+    if (id !== loadN) return;
+    if (!got.length) { doneOld = true; return; }
+    const ts = chart.timeScale(), r = ts.getVisibleLogicalRange();
+    setAll(got.concat(candles));
+    if (r) ts.setVisibleLogicalRange({ from: r.from + got.length, to: r.to + got.length });   // картинка не прыгает
+    ok = true;
+  } catch (e) { console.error(e); }
+  finally { busyOld = false; if (ok) setTimeout(edges, 50); }
+}
+async function loadNewer() {
+  if (busyNew || doneNew || !candles.length) return;
+  const id = loadN, iv = IV[tf], now = Math.floor(Date.now() / 1000), start = candles[candles.length - 1].time - TZ + iv;
+  if (start > now) { doneNew = true; return; }
+  busyNew = true;
+  let ok = false;
+  try {
+    const got = (await fetchRange(tf, start, Math.min(now, start + 1000 * iv)))
+      .filter(b => b.time > candles[candles.length - 1].time);
+    if (id !== loadN) return;
+    if (!got.length) { doneNew = true; return; }
+    const ts = chart.timeScale(), r = ts.getVisibleLogicalRange();
+    setAll(candles.concat(got));                          // справа: номера прежних свечей не меняются
+    if (r) ts.setVisibleLogicalRange(r);
+    ok = true;
+  } catch (e) { console.error(e); }
+  finally { busyNew = false; if (ok) setTimeout(edges, 50); }
+}
+function edges() {
+  // у края видимого — тянуть дальше; сжал сильно — тянет пачками, пока экран не заполнится
+  const r = chart && chart.timeScale().getVisibleLogicalRange();
+  if (!r || !candles.length) return;
+  const ahead = Math.max(150, r.to - r.from);           // заранее — за целый экран до края
+  if (r.from < ahead) loadOlder();
+  if (r.to > candles.length - ahead) loadNewer();
 }
 
 function center() {
-  // сделка — посередине; правее свечей нет — последняя свеча с отступом 20% справа
+  // сделка — посередине экрана
   const ts = chart.timeScale(), w = ts.width() || el('chart').clientWidth;
   const a = lpos(D.e[0][0]), b = lpos(D.x.length ? D.x[D.x.length - 1][0] : D.e[0][0]), mid = (a + b) / 2;
-  const half = Math.max(w / 6 / 2, (b - a) / 2 + 3), end = candles.length - 1 + half * 0.4;
-  let from = mid - half, to = mid + half;
-  if (to > end) { from -= to - end; to = end; }
-  ts.setVisibleLogicalRange({ from, to });
+  const half = Math.max(w / 6 / 2, (b - a) / 2 + 3);
+  ts.setVisibleLogicalRange({ from: mid - half, to: mid + half });   // сделка всегда в центре, даже свежая
 }
 
 let vol, futS;
@@ -177,7 +237,10 @@ function makeChart() {
   futS = chart.addLineSeries({ priceScaleId: 'fut', lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false });
   const pl = (price, color, title, style) => price && series.createPriceLine({ price, color, lineWidth: 1, lineStyle: style,
                                                                                axisLabelVisible: true, title });
-  pl(avg(D.e), '#9aa4b1', 'вход', 2);
+  // метки входа и выхода на оси цены (сами линии — от своего времени вправо, рисуем поверх)
+  const tag = (price, color) => series.createPriceLine({ price, color, lineVisible: false, axisLabelVisible: true, title: '' });
+  tag(avg(D.e), '#2fd08a');
+  if (D.x.length) tag(avg(D.x), '#ef5350');
   pl(D.sl, '#ef5350', 'стоп', 2);
   pl(D.tp, '#2fd08a', 'цель', 2);
   chart.subscribeCrosshairMove(p => {
@@ -187,6 +250,9 @@ function makeChart() {
     el('legend').innerHTML = `O ${fp(b.open)} H ${fp(b.high)} L ${fp(b.low)} C ${fp(b.close)} ` +
       `<span class="${ch >= 0 ? 'up' : 'down'}">${ch >= 0 ? '+' : ''}${ch.toFixed(2)}%</span>`;
   });
+  chart.timeScale().subscribeVisibleLogicalRangeChange(edges);
+  el('wrap').addEventListener('mousemove', e => { const r = el('wrap').getBoundingClientRect(); mouse = { x: e.clientX - r.left, y: e.clientY - r.top }; });
+  el('wrap').addEventListener('mouseleave', () => { mouse = null; });
   el('chart').addEventListener('dblclick', e => {
     const r = el('chart').getBoundingClientRect();
     if (e.clientY - r.top > r.height - chart.timeScale().height()) center();
@@ -213,13 +279,26 @@ function paint() {
   const pw = W - chart.priceScale('right').width();
   g.save(); g.beginPath(); g.rect(0, 0, pw, H - chart.timeScale().height()); g.clip();
   const long = D.d === 'L';
-  // прямоугольник: от входа до выхода, от цены входа до цены выхода
-  if (D.x.length) {
-    const xa = xAt(lpos(D.e[0][0])), xb = xAt(lpos(D.x[D.x.length - 1][0]));
-    const ya = yAt(avg(D.e)), yb = yAt(avg(D.x));
-    if ([xa, xb, ya, yb].every(v => v != null)) {
-      g.fillStyle = D.pct >= 0 ? 'rgba(38,166,154,.13)' : 'rgba(239,83,80,.13)';
-      g.fillRect(Math.min(xa, xb), Math.min(ya, yb), Math.abs(xb - xa), Math.abs(yb - ya));
+  // как в ТММ: вход — зелёный пунктир от момента входа вправо, выход — красный от момента выхода вправо,
+  // процент сделки — цветной надписью у правого края, посередине между ними
+  {
+    const en = avg(D.e), ye = yAt(en), xe = xAt(lpos(D.e[0][0]));
+    const hline = (x, y, col, dash) => {
+      if (x == null || y == null) return;
+      g.strokeStyle = col; g.lineWidth = 1; g.setLineDash(dash);
+      g.beginPath(); g.moveTo(Math.max(0, x), y); g.lineTo(pw, y); g.stroke(); g.setLineDash([]);
+    };
+    hline(xe, ye, '#2fd08a', [5, 4]);
+    if (D.x.length) {
+      const ex = avg(D.x), yx = yAt(ex), xx = xAt(lpos(D.x[D.x.length - 1][0]));
+      hline(xx, yx, '#ef5350', [2, 3]);
+      if (ye != null && yx != null) {
+        const txt = (D.pct > 0 ? '+' : '') + D.pct + '%' + (D.usd != null ? `  ${D.usd >= 0 ? '+' : '−'}${Math.abs(D.usd).toFixed(2)}$` : '');
+        g.font = 'bold 12px system-ui, sans-serif'; g.textBaseline = 'middle';
+        g.fillStyle = D.pct >= 0 ? '#2fd08a' : '#ef5350';
+        g.fillText(txt, pw - g.measureText(txt).width - 6, (ye + yx) / 2);
+        g.textBaseline = 'alphabetic';
+      }
     }
   }
   // линии автора
@@ -249,6 +328,18 @@ function paint() {
     const x = barMid(f[0]), y = yAt(f[1]); if (x == null || y == null) continue;
     const buy = entry === long;
     chev(g, x, buy ? y + 1 : y - 1, buy, entry ? '#2fd08a' : '#ef5350');
+  }
+  if (mouse) {
+    const p = series.coordinateToPrice(mouse.y), en = avg(D.e);
+    if (p != null && en) {
+      const pct = (p - en) / en * 100 * (long ? 1 : -1), up = pct >= 0;    // сколько дал бы выход здесь
+      const txt = (up ? '+' : '') + pct.toFixed(2) + '% от входа';
+      g.font = '12px system-ui, sans-serif';
+      const w = g.measureText(txt).width + 8, h = 16, x = pw - w - 2, y = Math.max(0, Math.min(H - h, mouse.y - h - 2));
+      g.fillStyle = 'rgba(10,16,26,.9)'; g.fillRect(x, y, w, h);
+      g.fillStyle = up ? '#2fd08a' : '#e06b6b'; g.textBaseline = 'middle'; g.fillText(txt, x + 4, y + h / 2);
+      g.textBaseline = 'alphabetic';
+    }
   }
   g.restore();
 }
