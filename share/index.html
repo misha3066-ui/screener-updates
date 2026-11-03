@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Сделка · TRAIL</title>
+<!-- Просмотр сделки по ссылке из дневника TRAIL (03.11.2026).
+     Вся сделка — в самой ссылке, после «#» (браузер эту часть никуда не отправляет): монета, входы и выходы,
+     стоп/цель, линии, по желанию отправителя — $ и заметка. Свечи страница берёт сама с биржи (открытые данные).
+     Одна и та же страница: на GitHub Pages — для тех, у кого только браузер; в TRAIL — по адресу /share. -->
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+  :root { --bg: #0f1216; --card: #161b22; --line: #262c36; --text: #d7dce3; --muted: #7d8794;
+          --up: #26a69a; --down: #ef5350; --accent: #f0b90b; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+               font: 13px system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  body { display: flex; flex-direction: column; }
+  header { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  header b { font-size: 15px; }
+  #meta { color: var(--muted); }
+  #tfs, #acts { display: flex; gap: 4px; flex-wrap: wrap; }
+  #acts { margin-left: auto; }
+  button, a.btn { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 4px;
+                  padding: 3px 8px; font: inherit; cursor: pointer; text-decoration: none; }
+  button:hover, a.btn:hover { border-color: var(--muted); }
+  button.on { border-color: var(--accent); color: var(--accent); }
+  .up { color: var(--up); } .down { color: var(--down); }
+  #main { flex: 1; display: flex; min-height: 0; }
+  #wrap { position: relative; flex: 1; min-width: 0; }
+  #chart { position: absolute; inset: 0; }
+  #ov { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
+  #legend { position: absolute; left: 8px; top: 6px; z-index: 3; color: var(--muted); font-size: 11px; pointer-events: none; }
+  #msg { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); color: var(--muted); text-align: center; z-index: 4; }
+  #info { width: 270px; flex: none; border-left: 1px solid var(--line); padding: 10px 12px; overflow-y: auto; }
+  #info .row { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px solid #1c222b; }
+  #info .row span:first-child { color: var(--muted); }
+  #info .note { white-space: pre-wrap; margin-top: 8px; padding: 6px 8px; background: var(--card); border-radius: 4px; }
+  #info .big { font-size: 22px; font-weight: 600; margin: 2px 0 8px; }
+  footer { padding: 6px 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+  footer a { color: var(--accent); }
+  #toast { position: fixed; right: 12px; bottom: 40px; background: var(--card); border: 1px solid var(--line);
+           border-radius: 6px; padding: 8px 12px; display: none; z-index: 10; }
+  @media (max-width: 760px) {
+    #main { flex-direction: column; }
+    #wrap { min-height: 60vh; }
+    #info { width: auto; border-left: 0; border-top: 1px solid var(--line); }
+  }
+</style>
+</head>
+<body>
+<header><b id="title">Сделка</b><span id="meta"></span><span id="tfs"></span><span id="acts"></span></header>
+<div id="main">
+  <div id="wrap"><div id="chart"></div><canvas id="ov"></canvas><div id="legend"></div><div id="msg">загружаю…</div></div>
+  <div id="info"></div>
+</div>
+<footer>TRAIL — скринер, торговля из стакана и дневник сделок для Binance USDT-M. Бесплатно для рефералов Михаила в Ватаге —
+  <a href="https://t.me/MikhailTraiderBot" target="_blank" rel="noopener">@MikhailTraiderBot</a>. Время на графике — ваше местное.</footer>
+<div id="toast"></div>
+<script>
+const el = id => document.getElementById(id);
+const TZ = -new Date().getTimezoneOffset() * 60;            // график в местном времени смотрящего
+const IV = { '1m': 60, '5m': 300, '15m': 900, '1h': 3600, '4h': 14400, '1d': 86400 };
+const TF_NAME = { '1m': '1м', '5m': '5м', '15m': '15м', '1h': '1ч', '4h': '4ч', '1d': 'Д' };
+const BYBIT_IV = { '1m': '1', '5m': '5', '15m': '15', '1h': '60', '4h': '240', '1d': 'D' };
+const LOCAL = /^(127\.0\.0\.1|localhost)$/.test(location.hostname);   // открыто в TRAIL у получателя
+// где лежит эта же страница для всех (GitHub Pages репозитория обновлений): ссылка, которую можно переслать дальше
+const SHARE_URL = 'https://misha3066-ui.github.io/screener-updates/share/';
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+let D = null, tf = '1m', candles = [], chart = null, series = null, plines = [], loadN = 0;
+
+async function unpack(s) {
+  s = s.replace(/-/g, '+').replace(/_/g, '/');
+  while (s.length % 4) s += '=';
+  const bin = atob(s), u = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  const st = new Blob([u]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  return JSON.parse(await new Response(st).text());
+}
+
+function toast(t) {
+  const b = el('toast'); b.textContent = t; b.style.display = 'block';
+  clearTimeout(toast.t); toast.t = setTimeout(() => b.style.display = 'none', 3500);
+}
+const fmtTime = s => new Date(s * 1000).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit',
+                                                                  hour: '2-digit', minute: '2-digit', second: '2-digit' });
+function dur(s) {
+  s = Math.round(s); const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
+  return d ? `${d} д ${h} ч` : h ? `${h} ч ${m} мин` : m ? `${m} мин ${s % 60} с` : `${s} с`;
+}
+const avg = fs => { const q = fs.reduce((a, f) => a + (f[2] || 1), 0); return fs.reduce((a, f) => a + f[1] * (f[2] || 1), 0) / q; };
+let prec = 4;
+const fp = p => (+p).toFixed(prec);
+
+// ---------- свечи с биржи ----------
+async function klines(tf) {
+  const iv = IV[tf], e0 = D.e[0][0], x1 = D.x.length ? D.x[D.x.length - 1][0] : e0;
+  const now = Math.floor(Date.now() / 1000);
+  let start = e0 - 200 * iv, end = Math.min(now, x1 + 150 * iv);
+  if ((end - start) / iv > 1000) {                      // длинная сделка — меньше запаса по краям
+    start = e0 - 40 * iv; end = Math.min(now, start + 1000 * iv);
+  }
+  if (D.ex === 'bybit') {
+    const r = await (await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${D.s}` +
+      `&interval=${BYBIT_IV[tf]}&start=${start * 1000}&end=${end * 1000}&limit=1000`)).json();
+    return ((r.result && r.result.list) || []).map(k => ({ time: +k[0] / 1000 + TZ, open: +k[1], high: +k[2],
+      low: +k[3], close: +k[4], q: +k[6] })).reverse();
+  }
+  const r = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${D.s}&interval=${tf}` +
+    `&startTime=${start * 1000}&endTime=${end * 1000}&limit=1000`);
+  if (!r.ok) throw new Error('биржа ответила ' + r.status);
+  return (await r.json()).map(k => ({ time: k[0] / 1000 + TZ, open: +k[1], high: +k[2], low: +k[3], close: +k[4], q: +k[7] }));
+}
+
+// логическая позиция момента t (UTC, с): номер свечи + доля внутри неё; за краями — шагом таймфрейма
+function lpos(t) {
+  const iv = IV[tf], n = candles.length, u = t + TZ;
+  if (!n) return null;
+  if (u <= candles[0].time) return (u - candles[0].time) / iv;
+  if (u >= candles[n - 1].time) return n - 1 + (u - candles[n - 1].time) / iv;
+  let lo = 0, hi = n - 1;
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (candles[m].time <= u) lo = m; else hi = m; }
+  return lo + (u - candles[lo].time) / (candles[hi].time - candles[lo].time);
+}
+const xAt = l => l == null ? null : chart.timeScale().logicalToCoordinate(l);
+const barMid = t => { const l = lpos(t); return l == null ? null : xAt(Math.floor(l + 1e-9)); };   // шеврон — по центру свечи
+const yAt = p => series.priceToCoordinate(p);
+
+// ---------- график ----------
+async function load(newTf) {
+  tf = newTf;
+  renderTfs();
+  const id = ++loadN;
+  el('msg').textContent = 'загружаю свечи…'; el('msg').style.display = '';
+  let cs;
+  try { cs = await klines(tf); }
+  catch (e) { if (id === loadN) el('msg').textContent = 'свечи не пришли с биржи: ' + e.message; return; }
+  if (id !== loadN) return;
+  if (!cs.length) { el('msg').textContent = 'биржа не отдала свечи за это время'; return; }
+  el('msg').style.display = 'none';
+  candles = cs;
+  series.setData(cs);
+  vol.setData(cs.map(b => ({ time: b.time, value: b.q, color: b.close >= b.open ? '#26a69a66' : '#ef535066' })));
+  const last = cs[cs.length - 1].time, fut = [];        // правее последней свечи — пустые метки: ось идёт дальше
+  for (let i = 1; i <= 500; i++) fut.push({ time: last + i * IV[tf] });
+  futS.setData(fut);
+  center();
+}
+
+function center() {
+  // сделка — посередине; правее свечей нет — последняя свеча с отступом 20% справа
+  const ts = chart.timeScale(), w = ts.width() || el('chart').clientWidth;
+  const a = lpos(D.e[0][0]), b = lpos(D.x.length ? D.x[D.x.length - 1][0] : D.e[0][0]), mid = (a + b) / 2;
+  const half = Math.max(w / 6 / 2, (b - a) / 2 + 3), end = candles.length - 1 + half * 0.4;
+  let from = mid - half, to = mid + half;
+  if (to > end) { from -= to - end; to = end; }
+  ts.setVisibleLogicalRange({ from, to });
+}
+
+let vol, futS;
+function makeChart() {
+  chart = LightweightCharts.createChart(el('chart'), {
+    autoSize: true,
+    layout: { background: { color: 'transparent' }, textColor: '#7d8794', fontSize: 10 },
+    grid: { vertLines: { visible: false }, horzLines: { color: '#1e232b' } },
+    rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.08, bottom: 0.22 } },
+    timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false, minBarSpacing: 0.3, rightOffset: 0 },
+    crosshair: { mode: 0, vertLine: { labelBackgroundColor: '#b8c1cd' }, horzLine: { labelBackgroundColor: '#b8c1cd' } },
+    handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+    handleScale: { mouseWheel: true, pinch: true, axisPressedMouseMove: true, axisDoubleClickReset: { time: false, price: true } },
+  });
+  series = chart.addCandlestickSeries({ upColor: '#26a69a', downColor: '#ef5350', wickUpColor: '#26a69a',
+    wickDownColor: '#ef5350', borderVisible: false, priceLineVisible: false, lastValueVisible: false,
+    priceFormat: { type: 'price', precision: prec, minMove: Math.pow(10, -prec) } });
+  vol = chart.addHistogramSeries({ priceScaleId: 'v', priceFormat: { type: 'volume' }, lastValueVisible: false });
+  chart.priceScale('v').applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+  futS = chart.addLineSeries({ priceScaleId: 'fut', lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false });
+  const pl = (price, color, title, style) => price && series.createPriceLine({ price, color, lineWidth: 1, lineStyle: style,
+                                                                               axisLabelVisible: true, title });
+  pl(avg(D.e), '#9aa4b1', 'вход', 2);
+  pl(D.sl, '#ef5350', 'стоп', 2);
+  pl(D.tp, '#2fd08a', 'цель', 2);
+  chart.subscribeCrosshairMove(p => {
+    const b = p.time != null && candles.find(c => c.time === p.time);
+    if (!b) { el('legend').textContent = ''; return; }
+    const ch = (b.close - b.open) / b.open * 100;
+    el('legend').innerHTML = `O ${fp(b.open)} H ${fp(b.high)} L ${fp(b.low)} C ${fp(b.close)} ` +
+      `<span class="${ch >= 0 ? 'up' : 'down'}">${ch >= 0 ? '+' : ''}${ch.toFixed(2)}%</span>`;
+  });
+  el('chart').addEventListener('dblclick', e => {
+    const r = el('chart').getBoundingClientRect();
+    if (e.clientY - r.top > r.height - chart.timeScale().height()) center();
+  });
+  requestAnimationFrame(paint);
+}
+
+// ---------- поверх графика: прямоугольник сделки, шевроны, линии ----------
+function chev(g, x, y, up, col) {
+  const s = 7;
+  g.fillStyle = col; g.strokeStyle = '#0f1216'; g.lineWidth = 1;
+  g.beginPath();
+  if (up) { g.moveTo(x, y); g.lineTo(x - s, y + s * 1.4); g.lineTo(x, y + s * 0.9); g.lineTo(x + s, y + s * 1.4); }
+  else { g.moveTo(x, y); g.lineTo(x - s, y - s * 1.4); g.lineTo(x, y - s * 0.9); g.lineTo(x + s, y - s * 1.4); }
+  g.closePath(); g.fill(); g.stroke();
+}
+const FIB = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
+function paint() {
+  requestAnimationFrame(paint);
+  const cv = el('ov'), W = cv.clientWidth, H = cv.clientHeight, dpr = devicePixelRatio || 1;
+  if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+  const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  if (!candles.length) return;
+  const pw = W - chart.priceScale('right').width();
+  g.save(); g.beginPath(); g.rect(0, 0, pw, H - chart.timeScale().height()); g.clip();
+  const long = D.d === 'L';
+  // прямоугольник: от входа до выхода, от цены входа до цены выхода
+  if (D.x.length) {
+    const xa = xAt(lpos(D.e[0][0])), xb = xAt(lpos(D.x[D.x.length - 1][0]));
+    const ya = yAt(avg(D.e)), yb = yAt(avg(D.x));
+    if ([xa, xb, ya, yb].every(v => v != null)) {
+      g.fillStyle = D.pct >= 0 ? 'rgba(38,166,154,.13)' : 'rgba(239,83,80,.13)';
+      g.fillRect(Math.min(xa, xb), Math.min(ya, yb), Math.abs(xb - xa), Math.abs(yb - ya));
+    }
+  }
+  // линии автора
+  for (const d of D.ln || []) {
+    g.strokeStyle = d.c || '#6aa9ff'; g.lineWidth = 1.2; g.setLineDash([]);
+    if (d.k === 'у') { const y = yAt(d.p); if (y == null) continue; g.beginPath(); g.moveTo(0, y); g.lineTo(pw, y); g.stroke(); continue; }
+    if (d.k === 'л') {
+      const x = xAt(lpos(d.t)), y = yAt(d.p); if (x == null || y == null) continue;
+      g.beginPath(); g.moveTo(x, y); g.lineTo(pw, y); g.stroke(); continue;
+    }
+    const x1 = xAt(lpos(d.t1)), x2 = xAt(lpos(d.t2)), y1 = yAt(d.p1), y2 = yAt(d.p2);
+    if ([x1, x2, y1, y2].some(v => v == null)) continue;
+    if (d.k === 'т') { g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke(); }
+    else if (d.k === 'п') { g.globalAlpha = .15; g.fillStyle = d.c || '#6aa9ff'; g.fillRect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1));
+      g.globalAlpha = 1; g.strokeRect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1)); }
+    else if (d.k === 'ф') {
+      const l = Math.min(x1, x2), r = Math.max(x1, x2);
+      g.font = '10px system-ui'; g.fillStyle = d.c || '#6aa9ff';
+      for (const lv of FIB) {
+        const y = yAt(d.p2 + (d.p1 - d.p2) * lv); if (y == null) continue;
+        g.beginPath(); g.moveTo(l, y); g.lineTo(r, y); g.stroke(); g.fillText(String(lv), r + 3, y + 3);
+      }
+    }
+  }
+  // шевроны: вход — зелёный, выход — красный; покупка — вверх, продажа — вниз
+  for (const [fs, entry] of [[D.e, true], [D.x, false]]) for (const f of fs) {
+    const x = barMid(f[0]), y = yAt(f[1]); if (x == null || y == null) continue;
+    const buy = entry === long;
+    chev(g, x, buy ? y + 1 : y - 1, buy, entry ? '#2fd08a' : '#ef5350');
+  }
+  g.restore();
+}
+
+function renderTfs() {
+  el('tfs').innerHTML = Object.keys(IV).map(t => `<button data-tf="${t}" class="${t === tf ? 'on' : ''}">${TF_NAME[t]}</button>`).join('');
+  el('tfs').querySelectorAll('button').forEach(b => b.onclick = () => load(b.dataset.tf));
+}
+
+function renderInfo() {
+  const coin = D.s.replace(/USDT$/, ''), long = D.d === 'L', e0 = D.e[0][0], x1 = D.x.length ? D.x[D.x.length - 1][0] : null;
+  document.title = `${coin} ${long ? 'лонг' : 'шорт'} ${D.pct > 0 ? '+' : ''}${D.pct}% · TRAIL`;
+  el('title').innerHTML = `${esc(coin)} · <span class="${long ? 'up' : 'down'}">${long ? 'ЛОНГ' : 'ШОРТ'}</span> · ` +
+    `<span class="${D.pct >= 0 ? 'up' : 'down'}">${D.pct > 0 ? '+' : ''}${esc(D.pct)}%</span>`;
+  el('meta').textContent = `${D.ex === 'bybit' ? 'Bybit' : 'Binance'} · ${fmtTime(e0)}` + (x1 ? ` → ${fmtTime(x1)}` : '');
+  const row = (a, b) => `<div class="row"><span>${a}</span><span>${b}</span></div>`;
+  let h = `<div class="big ${D.pct >= 0 ? 'up' : 'down'}">${D.pct > 0 ? '+' : ''}${esc(D.pct)}%` +
+    (D.usd != null ? ` · ${D.usd >= 0 ? '+' : '−'}${Math.abs(D.usd).toFixed(2)}$` : '') + '</div>';
+  h += row('вход', fp(avg(D.e)) + (D.e.length > 1 ? ` (${D.e.length} части)` : ''));
+  if (D.x.length) h += row('выход', fp(avg(D.x)) + (D.x.length > 1 ? ` (${D.x.length} части)` : ''));
+  if (x1) h += row('длительность', dur(x1 - e0));
+  if (D.sl) h += row('стоп', fp(D.sl) + ` (${((D.sl - avg(D.e)) / avg(D.e) * 100 * (long ? 1 : -1)).toFixed(2)}%)`);
+  if (D.tp) h += row('цель', fp(D.tp) + ` (${((D.tp - avg(D.e)) / avg(D.e) * 100 * (long ? 1 : -1)).toFixed(2)}%)`);
+  if (D.vol != null) h += row('объём', '$' + Math.round(D.vol).toLocaleString('ru-RU'));
+  if (D.st) h += row('стратегия', esc(D.st));
+  if (D.b) h += row('буква', esc(D.b));
+  if (D.n) h += `<div class="note">${esc(D.n)}</div>`;
+  el('info').innerHTML = h;
+}
+
+function renderActs() {
+  const a = el('acts');
+  if (LOCAL) {
+    a.innerHTML = '<button id="save">📨 Сохранить в «Присланные»</button>';
+    el('save').onclick = async () => {
+      try {
+        const r = await (await fetch('/api/shared', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ действие: 'добавить', код: location.hash.slice(1), монета: D.s, сторона: D.d,
+                                 процент: D.pct, вход: D.e[0][0] }) })).json();
+        toast(r.error ? 'не сохранилось: ' + r.error : r.было ? 'уже в «Присланных»' : 'сохранено в дневнике → «Присланные»');
+      } catch (e) { toast('не сохранилось: ' + e.message); }
+    };
+  } else {
+    a.innerHTML = `<a class="btn" id="intrail" href="http://127.0.0.1:8772/share${esc(location.hash)}"
+      title="если у тебя установлен TRAIL и он запущен — откроет сделку в нём, там её можно сохранить">Открыть в моём TRAIL</a>`;
+  }
+  a.insertAdjacentHTML('beforeend', '<button id="copy">🔗 Ссылка</button>');
+  el('copy').onclick = async () => {
+    const url = LOCAL ? SHARE_URL + location.hash : location.href;
+    try { await navigator.clipboard.writeText(url); toast('ссылка скопирована'); } catch { prompt('Ссылка на сделку:', url); }
+  };
+}
+
+(async () => {
+  const code = location.hash.slice(1);
+  if (!code) { el('msg').textContent = 'в ссылке нет сделки'; return; }
+  try { D = await unpack(code); }
+  catch (e) { el('msg').textContent = 'ссылка повреждена — попроси прислать её заново'; return; }
+  if (!D || !D.s || !Array.isArray(D.e) || !D.e.length) { el('msg').textContent = 'в ссылке нет сделки'; return; }
+  D.x = Array.isArray(D.x) ? D.x : [];
+  // знаков после запятой — по самим ценам сделки
+  const all = [...D.e, ...D.x].map(f => f[1]).concat([D.sl, D.tp].filter(Boolean));
+  prec = Math.min(8, Math.max(2, ...all.map(p => { const s = String(p); return s.includes('.') ? s.split('.')[1].length : 0; })));
+  renderInfo(); renderActs(); makeChart();
+  // таймфрейм по длине сделки: чтобы вся влезла, но свечи были видны
+  const span = (D.x.length ? D.x[D.x.length - 1][0] : D.e[0][0]) - D.e[0][0];
+  load(D.tf && IV[D.tf] && span / IV[D.tf] <= 700 ? D.tf : Object.keys(IV).find(t => span / IV[t] <= 400) || '1d');
+})();
+window.addEventListener('hashchange', () => location.reload());
+</script>
+</body>
+</html>
